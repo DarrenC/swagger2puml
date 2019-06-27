@@ -87,8 +87,12 @@ public class PlantUMLCodegen {
 		MustacheFactory mf = new DefaultMustacheFactory();
 		Mustache mustache = mf.compile("puml.mustache");
 		Writer writer = null;
-		String pumlPath = new StringBuilder().append(targetLocation.getAbsolutePath()).append(File.separator)
-				.append("swagger.puml").toString();
+		String pumlPath = new StringBuilder()
+				.append(targetLocation.getAbsolutePath())
+				.append(File.separator)
+				.append("swagger.puml")
+				.toString();
+
 		try {
 			writer = new FileWriter(pumlPath);
 			mustache.execute(writer, additionalProperties);
@@ -227,11 +231,11 @@ public class PlantUMLCodegen {
 
 		InterfaceDiagram interfaceDiagram = new InterfaceDiagram();
 		String interfaceName = getInterfaceName(operation.getTags(), operation, uri);
-		String errorClassName = getErrorClassName(operation);
+		List<String> errorClassNames = getErrorClassNames(operation);
 		interfaceDiagram.setInterfaceName(interfaceName);
-		interfaceDiagram.setErrorClass(errorClassName);
+		interfaceDiagram.setErrorClasses(errorClassNames);
 		interfaceDiagram.setMethods(getInterfaceMethods(operation));
-		interfaceDiagram.setChildClass(getInterfaceRelations(operation,errorClassName));
+		interfaceDiagram.setChildClass(getInterfaceRelations(operation,errorClassNames));
 
 		LOGGER.exiting(LOGGER.getName(), "getInterfaceDiagram");
 		return interfaceDiagram;
@@ -242,12 +246,11 @@ public class PlantUMLCodegen {
 	 * @param operation
 	 * @return
 	 */
-	private List<ClassRelation> getInterfaceRelations(Operation operation,String errorClassName) {
+	private List<ClassRelation> getInterfaceRelations(Operation operation, List<String> errorClassNames) {
 		List<ClassRelation> relations = new ArrayList<ClassRelation>();
 		relations.addAll(getInterfaceRelatedResponses(operation));
 		relations.addAll(getInterfaceRelatedInputs(operation));
-		if(StringUtils.isNotEmpty(errorClassName))
-		{
+		for(String errorClassName : errorClassNames){
 			relations.add(getErrorClass(errorClassName));
 		}
 		
@@ -537,6 +540,28 @@ public class PlantUMLCodegen {
 		return errorClass.toString();
 	}
 
+	private List<String> getErrorClassNames(Operation operation) {
+		List<String> errorClasses = new ArrayList<>();
+		Map<String, Response> responses = operation.getResponses();
+
+		for (Map.Entry<String, Response> responsesEntry : responses.entrySet()) {
+			String responseCode = responsesEntry.getKey();
+
+			if (responseCode.equalsIgnoreCase("default") || Integer.parseInt(responseCode) >= 300) {
+				Property responseProperty = responsesEntry.getValue().getSchema();
+
+				if (responseProperty instanceof RefProperty) {
+					String errorClassName = ((RefProperty) responseProperty).getSimpleRef();
+					if (!errorClasses.contains(errorClassName)) {
+							errorClasses.add(errorClassName);
+					}
+				}
+			}
+		}
+
+		return errorClasses;
+	}
+
 	/**
 	 * 
 	 * @param tags
@@ -750,6 +775,7 @@ public class PlantUMLCodegen {
 		}
 
 		List<ClassMembers> ancestorMembers = new ArrayList<ClassMembers>();
+
 		List<Model> allOf = composedModel.getAllOf();
 		for (Model currentModel : allOf) {
 
@@ -757,7 +783,7 @@ public class PlantUMLCodegen {
 				RefModel refModel = (RefModel) currentModel;
 				// This line throws an NPE when encountering deeply nested class hierarchies because it assumes any child
         // classes are RefModel and not ComposedModel
-				// childProperties.putAll(modelsMap.get(refModel.getSimpleRef()).getProperties());
+//				childProperties.putAll(modelsMap.get(refModel.getSimpleRef()).getProperties());
 
         Model parentRefModel = modelsMap.get(refModel.getSimpleRef());
 
@@ -779,9 +805,7 @@ public class PlantUMLCodegen {
             ancestorMembers = getClassMembers(parentRefComposedModel, modelsMap, visited);
             classMembers.addAll(ancestorMembers);
           }
-         }
-
-
+        }
 			}
 		}
 
