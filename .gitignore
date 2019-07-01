@@ -24,6 +24,10 @@ hs_err_pid*
 # internal swagger examples
 examples/internal
 
+# JUnit generated files
+**/test/resources/**/*.puml
+**/test/resources/**/*.svg
+
 .idea
 .project
 *.prefs

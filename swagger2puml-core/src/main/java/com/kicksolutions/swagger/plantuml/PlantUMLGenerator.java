@@ -2,11 +2,17 @@ package com.kicksolutions.swagger.plantuml;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import io.swagger.models.Swagger;
 import io.swagger.parser.SwaggerParser;
+import net.sourceforge.plantuml.FileFormat;
+import net.sourceforge.plantuml.FileFormatOption;
+import net.sourceforge.plantuml.GeneratedImage;
+import net.sourceforge.plantuml.SourceFileReader;
+import net.sourceforge.plantuml.SourceFileReader2;
 
 /**
  * MSANTOSH
@@ -45,7 +51,8 @@ public class PlantUMLGenerator
     			
     			if(generateSvg)
     			{
-    				generateUMLDiagram(pumlPath, targetLocation);
+    				//generateUMLDiagram(pumlPath, targetLocation);
+    				generateUmlDiagramNonThread(pumlPath, targetLocation);
     			}
     		}
     		catch(Exception e){
@@ -69,4 +76,10 @@ public class PlantUMLGenerator
     private void generateUMLDiagram(String pumlLocation,File targetLocation) throws IOException, InterruptedException{
     	net.sourceforge.plantuml.Run.main(new String[]{"-tsvg","-o",targetLocation.getAbsolutePath(),"-I",pumlLocation});
     }
+
+    private void generateUmlDiagramNonThread(String plantUmlFilePath, File targetOutputFile) throws Exception {
+			SourceFileReader sourceFileReader = new SourceFileReader(new File(plantUmlFilePath));
+			sourceFileReader.setFileFormatOption(new FileFormatOption(FileFormat.SVG));
+			List<GeneratedImage> list = sourceFileReader.getGeneratedImages();
+		}
 }
