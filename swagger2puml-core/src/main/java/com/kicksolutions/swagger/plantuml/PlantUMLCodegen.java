@@ -3,61 +3,25 @@
  */
 package com.kicksolutions.swagger.plantuml;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.Writer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
+import com.kicksolutions.swagger.plantuml.vo.*;
+import io.swagger.models.*;
+import io.swagger.models.parameters.*;
+import io.swagger.models.properties.*;
 import org.apache.commons.lang3.StringUtils;
 
-import com.github.mustachejava.DefaultMustacheFactory;
-import com.github.mustachejava.Mustache;
-import com.github.mustachejava.MustacheFactory;
-import com.kicksolutions.swagger.plantuml.vo.ClassDiagram;
-import com.kicksolutions.swagger.plantuml.vo.ClassMembers;
-import com.kicksolutions.swagger.plantuml.vo.ClassRelation;
-import com.kicksolutions.swagger.plantuml.vo.InterfaceDiagram;
-import com.kicksolutions.swagger.plantuml.vo.MethodDefinitions;
+import java.io.File;
+import java.io.IOException;
+import java.util.*;
+import java.util.logging.Logger;
 
-import io.swagger.models.ArrayModel;
-import io.swagger.models.ComposedModel;
-import io.swagger.models.Model;
-import io.swagger.models.ModelImpl;
-import io.swagger.models.Operation;
-import io.swagger.models.Path;
-import io.swagger.models.RefModel;
-import io.swagger.models.Response;
-import io.swagger.models.Swagger;
-import io.swagger.models.parameters.BodyParameter;
-import io.swagger.models.parameters.FormParameter;
-import io.swagger.models.parameters.Parameter;
-import io.swagger.models.parameters.PathParameter;
-import io.swagger.models.parameters.QueryParameter;
-import io.swagger.models.properties.ArrayProperty;
-import io.swagger.models.properties.ObjectProperty;
-import io.swagger.models.properties.Property;
-import io.swagger.models.properties.RefProperty;
-import io.swagger.models.properties.StringProperty;
+import static com.kicksolutions.swagger.plantuml.FormatUtility.toTitleCase;
 
-/**
- * @author MSANTOSH
- * 
- */
 public class PlantUMLCodegen {
 
 	private static final Logger LOGGER = Logger.getLogger(PlantUMLCodegen.class.getName());
 
-	private boolean generateDefinitionModelOnly = false;
-	private boolean includeCardinality = true;
+	private boolean generateDefinitionModelOnly;
+	private boolean includeCardinality;
 	private Swagger swagger;
 	private File targetLocation;
 	private static final String CARDINALITY_ONE_TO_MANY = "1..*";
@@ -65,9 +29,6 @@ public class PlantUMLCodegen {
 	private static final String CARDINALITY_ONE_TO_ONE = "1..1";
 	private static final String CARDINALITY_NONE_TO_ONE = "0..1";
 
-	/**
-	 * 
-	 */
 	public PlantUMLCodegen(Swagger swagger, File targetLocation, boolean generateDefinitionModelOnly,
 			boolean includeCardinality) {
 		this.swagger = swagger;
@@ -77,48 +38,28 @@ public class PlantUMLCodegen {
 	}
 
 	/**
-	 * 
+	 * generate a PlantUML File based on this classes Swagger property
+	 *
+	 * @return filepath to the PlantUML file as a String
+	 * @throws IOException - If there is an error writing the file
+	 * @throws IllegalAccessException - if there is an issue generating the file information
 	 */
-	public String generatePuml() throws IOException, IllegalAccessException {
-		LOGGER.entering(LOGGER.getName(), "generatePuml");
+	public String generatePlantUmlFile() throws IOException, IllegalAccessException {
+		LOGGER.entering(LOGGER.getName(), "generatePlantUmlFile");
 
-		Map<String, Object> additionalProperties = preprocessSwagger(swagger);
+		Map<String, Object> plantUmlObjectModelMap = convertSwaggerToPlantUmlObjectModelMap(swagger);
 
-		MustacheFactory mf = new DefaultMustacheFactory();
-		Mustache mustache = mf.compile("puml.mustache");
-		Writer writer = null;
-		String pumlPath = new StringBuilder()
-				.append(targetLocation.getAbsolutePath())
-				.append(File.separator)
-				.append("swagger.puml")
-				.toString();
+		MustacheUtility mustacheUtility = new MustacheUtility();
+		String plantUmlFilePath = mustacheUtility.createPlantUmlFile(targetLocation, plantUmlObjectModelMap);
 
-		try {
-			writer = new FileWriter(pumlPath);
-			mustache.execute(writer, additionalProperties);
-
-			LOGGER.log(Level.FINEST, "Sucessfully Written Puml File @ " + pumlPath);
-		} catch (Exception e) {
-			LOGGER.log(Level.SEVERE, e.getMessage(), e);
-			throw new IllegalAccessException(e.getMessage());
-		} finally {
-			if (writer != null) {
-				writer.flush();
-			}
-		}
-
-		LOGGER.exiting(LOGGER.getName(), "generatePuml");
-		return pumlPath;
+		LOGGER.exiting(LOGGER.getName(), "generatePlantUmlFile");
+		return plantUmlFilePath;
 	}
 
-	/**
-	 * 
-	 * @param swagger
-	 */
-	private Map<String, Object> preprocessSwagger(Swagger swagger) {
-		LOGGER.entering(LOGGER.getName(), "preprocessSwagger");
+	private Map<String, Object> convertSwaggerToPlantUmlObjectModelMap(Swagger swagger) {
+		LOGGER.entering(LOGGER.getName(), "convertSwaggerToPlantUmlObjectModelMap");
 
-		Map<String, Object> additionalProperties = new TreeMap<String, Object>();
+		Map<String, Object> additionalProperties = new TreeMap<>();
 
 		additionalProperties.put("title", swagger.getInfo().getTitle());
 		additionalProperties.put("version", swagger.getInfo().getVersion());
@@ -126,7 +67,7 @@ public class PlantUMLCodegen {
 		List<ClassDiagram> classDiagrams = processSwaggerModels(swagger);
 		additionalProperties.put("classDiagrams", classDiagrams);
 
-		List<InterfaceDiagram> interfaceDiagrams = new ArrayList<InterfaceDiagram>();
+		List<InterfaceDiagram> interfaceDiagrams = new ArrayList<>();
 		
 		if (!generateDefinitionModelOnly) {
 			interfaceDiagrams.addAll(processSwaggerPaths(swagger));
@@ -135,32 +76,21 @@ public class PlantUMLCodegen {
 		
 		additionalProperties.put("entityRelations", getRelations(classDiagrams, interfaceDiagrams));
 
-		LOGGER.exiting(LOGGER.getName(), "preprocessSwagger");
+		LOGGER.exiting(LOGGER.getName(), "convertSwaggerToPlantUmlObjectModelMap");
 
 		return additionalProperties;
 	}
-	
-	/**
-	 * 
-	 * @param classDiagrams
-	 * @param interfaceDiagrams
-	 * @return
-	 */
+
 	private List<ClassRelation> getRelations(List<ClassDiagram> classDiagrams,List<InterfaceDiagram> interfaceDiagrams){
-		List<ClassRelation> relations = new ArrayList<ClassRelation>();
+		List<ClassRelation> relations = new ArrayList<>();
 		relations.addAll(getAllModelRelations(classDiagrams));
 		relations.addAll(getAllInterfacesRelations(interfaceDiagrams));
 		
 		return filterUnique(relations,false);
 	}
-	
-	/**
-	 * 
-	 * @param classDiagrams
-	 * @return
-	 */
+
 	private List<ClassRelation> getAllModelRelations(List<ClassDiagram> classDiagrams){
-		List<ClassRelation> modelRelations = new ArrayList<ClassRelation>(); 
+		List<ClassRelation> modelRelations = new ArrayList<>();
 		
 		for(ClassDiagram classDiagram: classDiagrams){
 			 List<ClassRelation> classRelations = classDiagram.getChildClass();
@@ -174,13 +104,8 @@ public class PlantUMLCodegen {
 		return modelRelations;
 	}
 
-	/**
-	 * 
-	 * @param classDiagrams
-	 * @return
-	 */
 	private List<ClassRelation> getAllInterfacesRelations(List<InterfaceDiagram> interfaceDiagrams){
-		List<ClassRelation> modelRelations = new ArrayList<ClassRelation>(); 
+		List<ClassRelation> modelRelations = new ArrayList<>();
 		
 		for(InterfaceDiagram classDiagram: interfaceDiagrams){
 			 List<ClassRelation> classRelations = classDiagram.getChildClass();
@@ -193,15 +118,10 @@ public class PlantUMLCodegen {
 		
 		return modelRelations;
 	}
-	
-	/**
-	 * 
-	 * @param swagger
-	 * @return
-	 */
+
 	private List<InterfaceDiagram> processSwaggerPaths(Swagger swagger) {
 		LOGGER.entering(LOGGER.getName(), "processSwaggerPaths");
-		List<InterfaceDiagram> interfaceDiagrams = new ArrayList<InterfaceDiagram>();
+		List<InterfaceDiagram> interfaceDiagrams = new ArrayList<>();
 		Map<String, Path> paths = swagger.getPaths();
 
 		for (Map.Entry<String, Path> entry : paths.entrySet()) {
@@ -221,11 +141,6 @@ public class PlantUMLCodegen {
 		return interfaceDiagrams;
 	}
 
-	/**
-	 * 
-	 * @param operation
-	 * @return
-	 */
 	private InterfaceDiagram getInterfaceDiagram(Operation operation, String uri) {
 		LOGGER.entering(LOGGER.getName(), "getInterfaceDiagram");
 
@@ -241,13 +156,8 @@ public class PlantUMLCodegen {
 		return interfaceDiagram;
 	}
 
-	/**
-	 * 
-	 * @param operation
-	 * @return
-	 */
 	private List<ClassRelation> getInterfaceRelations(Operation operation, List<String> errorClassNames) {
-		List<ClassRelation> relations = new ArrayList<ClassRelation>();
+		List<ClassRelation> relations = new ArrayList<>();
 		relations.addAll(getInterfaceRelatedResponses(operation));
 		relations.addAll(getInterfaceRelatedInputs(operation));
 		for(String errorClassName : errorClassNames){
@@ -257,13 +167,8 @@ public class PlantUMLCodegen {
 		return filterUnique(relations,true);
 	}
 
-	/**
-	 * 
-	 * @param relations
-	 * @return
-	 */
 	private List<ClassRelation> filterUnique(List<ClassRelation> relations,boolean compareTargetOnly){
-		List<ClassRelation> uniqueList = new ArrayList<ClassRelation>();
+		List<ClassRelation> uniqueList = new ArrayList<>();
 		
 		for(ClassRelation relation: relations){			
 			if(!isTargetClassInMap(relation, uniqueList,compareTargetOnly)){
@@ -273,14 +178,9 @@ public class PlantUMLCodegen {
 		
 		return uniqueList;
 	}
-	
-	/**
-	 * 
-	 * @param className
-	 * @param relatedResponses
-	 * @return
-	 */
-	private boolean isTargetClassInMap(ClassRelation sourceRelation, List<ClassRelation> relatedResponses,boolean considerTargetOnly) {
+
+	private boolean isTargetClassInMap(ClassRelation sourceRelation, List<ClassRelation> relatedResponses,
+																		 boolean considerTargetOnly) {
 		for (ClassRelation relation : relatedResponses) {
 			
 			if(considerTargetOnly){
@@ -304,12 +204,7 @@ public class PlantUMLCodegen {
 
 		return false;
 	}
-	
-	/**
-	 * 
-	 * @param errorClassName
-	 * @return
-	 */
+
 	private ClassRelation getErrorClass(String errorClassName){
 		ClassRelation classRelation = new ClassRelation();
 		classRelation.setTargetClass(errorClassName);
@@ -318,14 +213,10 @@ public class PlantUMLCodegen {
 				
 		return classRelation;
 	}
-	
-	/**
-	 * 
-	 * @param operation
-	 * @return
-	 */
+
+
 	private List<ClassRelation> getInterfaceRelatedInputs(Operation operation) {
-		List<ClassRelation> relatedResponses = new ArrayList<ClassRelation>();
+		List<ClassRelation> relatedResponses = new ArrayList<>();
 		List<Parameter> parameters = operation.getParameters();
 
 		for (Parameter parameter : parameters) {
@@ -358,13 +249,8 @@ public class PlantUMLCodegen {
 		return relatedResponses;
 	}
 
-	/**
-	 * 
-	 * @param operation
-	 * @return
-	 */
 	private List<ClassRelation> getInterfaceRelatedResponses(Operation operation) {
-		List<ClassRelation> relatedResponses = new ArrayList<ClassRelation>();
+		List<ClassRelation> relatedResponses = new ArrayList<>();
 		Map<String,Response> responses = operation.getResponses();
 		
 		for (Map.Entry<String, Response> responsesEntry : responses.entrySet()){			
@@ -401,13 +287,8 @@ public class PlantUMLCodegen {
 		return relatedResponses;
 	}
 
-	/**
-	 * 
-	 * @param operation
-	 * @return
-	 */
 	private List<MethodDefinitions> getInterfaceMethods(Operation operation) {
-		List<MethodDefinitions> interfaceMethods = new ArrayList<MethodDefinitions>();
+		List<MethodDefinitions> interfaceMethods = new ArrayList<>();
 		MethodDefinitions methodDefinitions = new MethodDefinitions();
 		methodDefinitions.setMethodDefinition(new StringBuilder().append(operation.getOperationId()).append("(")
 				.append(getMethodParameters(operation)).append(")").toString());
@@ -418,11 +299,6 @@ public class PlantUMLCodegen {
 		return interfaceMethods;
 	}
 
-	/**
-	 * 
-	 * @param operation
-	 * @return
-	 */
 	private String getMethodParameters(Operation operation) {
 		String methodParameter = "";
 		List<Parameter> parameters = operation.getParameters();
@@ -456,33 +332,28 @@ public class PlantUMLCodegen {
 				Model bodyParameter = ((BodyParameter) parameter).getSchema();
 
 				if (bodyParameter instanceof RefModel) {
-					methodParameter = new StringBuilder().append(methodParameter)
-							.append(toTitleCase(((RefModel) bodyParameter).getSimpleRef())).append(" ")
-							.append(((BodyParameter) parameter).getName()).toString();
+					methodParameter = methodParameter +
+							toTitleCase(((RefModel) bodyParameter).getSimpleRef()) + " " +
+							((BodyParameter) parameter).getName();
 				} else if (bodyParameter instanceof ArrayModel) {
 					Property propertyObject = ((ArrayModel) bodyParameter).getItems();
 
 					if (propertyObject instanceof RefProperty) {
-						methodParameter = new StringBuilder().append(methodParameter)
-								.append(toTitleCase(((RefProperty) propertyObject).getSimpleRef())).append("[] ")
-								.append(((BodyParameter) parameter).getName()).toString();
+						methodParameter = methodParameter +
+								toTitleCase(((RefProperty) propertyObject).getSimpleRef()) + "[] " +
+								((BodyParameter) parameter).getName();
 					}
 				}
 			} else if (parameter instanceof FormParameter) {
-				methodParameter = new StringBuilder().append(methodParameter)
-						.append(toTitleCase(((FormParameter) parameter).getType())).append(" ")
-						.append(((FormParameter) parameter).getName()).toString();
+				methodParameter = methodParameter +
+						toTitleCase(((FormParameter) parameter).getType()) +
+						" " + ((FormParameter) parameter).getName();
 			}
 		}
 
 		return methodParameter;
 	}
 
-	/**
-	 * 
-	 * @param operation
-	 * @return
-	 */
 	private String getInterfaceReturnType(Operation operation) {
 		String returnType = "void";
 
@@ -498,12 +369,10 @@ public class PlantUMLCodegen {
 				} else if (responseProperty instanceof ArrayProperty) {
 					Property arrayResponseProperty = ((ArrayProperty) responseProperty).getItems();
 					if (arrayResponseProperty instanceof RefProperty) {
-						returnType = new StringBuilder().append(((RefProperty) arrayResponseProperty).getSimpleRef())
-								.append("[]").toString();
+						returnType = ((RefProperty) arrayResponseProperty).getSimpleRef() + "[]";
 					}
 				} else if (responseProperty instanceof ObjectProperty) {
-					returnType = new StringBuilder().append(toTitleCase(operation.getOperationId())).append("Generated")
-							.toString();
+					returnType = toTitleCase(operation.getOperationId()) + "Generated";
 				}
 			}
 		}
@@ -511,11 +380,6 @@ public class PlantUMLCodegen {
 		return returnType;
 	}
 
-	/**
-	 * 
-	 * @param operation
-	 * @return
-	 */
 	private String getErrorClassName(Operation operation) {
 		StringBuilder errorClass = new StringBuilder();
 		Map<String, Response> responses = operation.getResponses();
@@ -562,13 +426,6 @@ public class PlantUMLCodegen {
 		return errorClasses;
 	}
 
-	/**
-	 * 
-	 * @param tags
-	 * @param operation
-	 * @param uri
-	 * @return
-	 */
 	private String getInterfaceName(List<String> tags, Operation operation, String uri) {
 		String interfaceName;
 
@@ -580,18 +437,13 @@ public class PlantUMLCodegen {
 			interfaceName = toTitleCase(uri.replaceAll("{", "").replaceAll("}", "").replaceAll("\\", ""));
 		}
 
-		return new StringBuilder().append(interfaceName).append("Api").toString();
+		return interfaceName + "Api";
 	}
 
-	/**
-	 * 
-	 * @param swagger
-	 * @return
-	 */
 	private List<ClassDiagram> processSwaggerModels(Swagger swagger) {
 		LOGGER.entering(LOGGER.getName(), "processSwaggerModels");
 
-		List<ClassDiagram> classDiagrams = new ArrayList<ClassDiagram>();
+		List<ClassDiagram> classDiagrams = new ArrayList<>();
 		Map<String, Model> modelsMap = swagger.getDefinitions();
 
 		for (Map.Entry<String, Model> models : modelsMap.entrySet()) {
@@ -612,11 +464,6 @@ public class PlantUMLCodegen {
 		return classDiagrams;
 	}
 
-	/**
-	 * 
-	 * @param model
-	 * @return
-	 */
 	private boolean isModelClass(Model model) {
 		LOGGER.entering(LOGGER.getName(), "isModelClass");
 
@@ -635,11 +482,6 @@ public class PlantUMLCodegen {
 		return isModelClass;
 	}
 
-	/**
-	 * 
-	 * @param model
-	 * @return
-	 */
 	private String getSuperClass(Model model) {
 		LOGGER.entering(LOGGER.getName(), "getSuperClass");
 
@@ -650,15 +492,13 @@ public class PlantUMLCodegen {
 			Property propertyObject = arrayModel.getItems();
 
 			if (propertyObject instanceof RefProperty) {
-				superClass = new StringBuilder().append("ArrayList[")
-						.append(((RefProperty) propertyObject).getSimpleRef()).append("]").toString();
+				superClass = "ArrayList["+ ((RefProperty) propertyObject).getSimpleRef() + "]";
 			}
 		} else if (model instanceof ModelImpl) {
 			Property addProperty = ((ModelImpl) model).getAdditionalProperties();
 
 			if (addProperty instanceof RefProperty) {
-				superClass = new StringBuilder().append("Map[").append(((RefProperty) addProperty).getSimpleRef())
-						.append("]").toString();
+				superClass = "Map[" + ((RefProperty) addProperty).getSimpleRef() + "]";
 			}
 		}
 
@@ -667,16 +507,10 @@ public class PlantUMLCodegen {
 		return superClass;
 	}
 
-	/**
-	 * 
-	 * @param classMembers
-	 * @param superClass
-	 * @return
-	 */
 	private List<ClassRelation> getChildClasses(List<ClassMembers> classMembers, String superClass) {
 		LOGGER.entering(LOGGER.getName(), "getChildClasses");
 
-		List<ClassRelation> childClasses = new ArrayList<ClassRelation>();
+		List<ClassRelation> childClasses = new ArrayList<>();
 
 		for (ClassMembers member : classMembers) {
 
@@ -703,16 +537,10 @@ public class PlantUMLCodegen {
 		return childClasses;
 	}
 
-	/**
-	 * 
-	 * @param modelObject
-	 * @param modelsMap
-	 * @return
-	 */
 	private List<ClassMembers> getClassMembers(Model modelObject, Map<String, Model> modelsMap) {
 		LOGGER.entering(LOGGER.getName(), "getClassMembers");
 
-		List<ClassMembers> classMembers = new ArrayList<ClassMembers>();
+		List<ClassMembers> classMembers = new ArrayList<>();
 
 		if (modelObject instanceof ModelImpl) {
 			classMembers = getClassMembers((ModelImpl) modelObject, modelsMap);
@@ -726,16 +554,10 @@ public class PlantUMLCodegen {
 		return classMembers;
 	}
 
-	/**
-	 * 
-	 * @param arrayModel
-	 * @param modelsMap
-	 * @return
-	 */
 	private List<ClassMembers> getClassMembers(ArrayModel arrayModel, Map<String, Model> modelsMap) {
 		LOGGER.entering(LOGGER.getName(), "getClassMembers-ArrayModel");
 
-		List<ClassMembers> classMembers = new ArrayList<ClassMembers>();
+		List<ClassMembers> classMembers = new ArrayList<>();
 
 		Property propertyObject = arrayModel.getItems();
 
@@ -747,14 +569,8 @@ public class PlantUMLCodegen {
 		return classMembers;
 	}
 
-	/**
-	 * 
-	 * @param composedModel
-	 * @param modelsMap
-	 * @return
-	 */
 	private List<ClassMembers> getClassMembers(ComposedModel composedModel, Map<String, Model> modelsMap) {
-      return getClassMembers(composedModel, modelsMap, new HashSet<Model>());
+      return getClassMembers(composedModel, modelsMap, new HashSet<>());
 	}
 
   /**
@@ -767,14 +583,14 @@ public class PlantUMLCodegen {
 	private List<ClassMembers> getClassMembers(ComposedModel composedModel, Map<String, Model> modelsMap, Set<Model> visited) {
 	  LOGGER.entering(LOGGER.getName(), "getClassMembers-ComposedModel-DeepNest");
 
-		List<ClassMembers> classMembers = new ArrayList<ClassMembers>();
-		Map<String, Property> childProperties = new HashMap<String, Property>();
+		List<ClassMembers> classMembers = new ArrayList<>();
+		Map<String, Property> childProperties = new HashMap<>();
 
 		if (null != composedModel.getChild()) {
 			childProperties = composedModel.getChild().getProperties();
 		}
 
-		List<ClassMembers> ancestorMembers = new ArrayList<ClassMembers>();
+		List<ClassMembers> ancestorMembers;
 
 		List<Model> allOf = composedModel.getAllOf();
 		for (Model currentModel : allOf) {
@@ -814,18 +630,10 @@ public class PlantUMLCodegen {
 		return classMembers;
   }
 
-  
-  
-
-	/**
-	 * 
-	 * @param model
-	 * @return
-	 */
 	private List<ClassMembers> getClassMembers(ModelImpl model, Map<String, Model> modelsMap) {
 		LOGGER.entering(LOGGER.getName(), "getClassMembers-ModelImpl");
 
-		List<ClassMembers> classMembers = new ArrayList<ClassMembers>();
+		List<ClassMembers> classMembers = new ArrayList<>();
 
 		Map<String, Property> modelMembers = model.getProperties();
 		if (modelMembers != null && !modelMembers.isEmpty()) {
@@ -851,11 +659,6 @@ public class PlantUMLCodegen {
 		return classMembers;
 	}
 
-	/**
-	 * 
-	 * @param refProperty
-	 * @return
-	 */
 	private ClassMembers getRefClassMembers(RefProperty refProperty) {
 		LOGGER.entering(LOGGER.getName(), "getRefClassMembers");
 		ClassMembers classMember = new ClassMembers();
@@ -870,15 +673,10 @@ public class PlantUMLCodegen {
 		return classMember;
 	}
 
-	/**
-	 * 
-	 * @param enumValues
-	 * @return
-	 */
 	private List<ClassMembers> getEnum(List<String> enumValues) {
 		LOGGER.entering(LOGGER.getName(), "getEnum");
 
-		List<ClassMembers> classMembers = new ArrayList<ClassMembers>();
+		List<ClassMembers> classMembers = new ArrayList<>();
 
 		if (enumValues != null && !enumValues.isEmpty()) {
 			for (String enumValue : enumValues) {
@@ -892,16 +690,11 @@ public class PlantUMLCodegen {
 		return classMembers;
 	}
 
-	/**
-	 * 
-	 * @param modelMembers
-	 * @return
-	 */
 	private List<ClassMembers> convertModelPropertiesToClassMembers(Map<String, Property> modelMembers,
 			Model modelObject, Map<String, Model> models) {
 		LOGGER.entering(LOGGER.getName(), "convertModelPropertiesToClassMembers");
 
-		List<ClassMembers> classMembers = new ArrayList<ClassMembers>();
+		List<ClassMembers> classMembers = new ArrayList<>();
 
 		for (Map.Entry<String, Property> modelMapObject : modelMembers.entrySet()) {
 			String variablName = modelMapObject.getKey();
@@ -926,14 +719,6 @@ public class PlantUMLCodegen {
 		return classMembers;
 	}
 
-	/**
-	 * 
-	 * @param modelObject
-	 * @param models
-	 * @param variablName
-	 * @param classMemberObject
-	 * @param propObject
-	 */
 	private ClassMembers getClassMember(ArrayProperty property, Model modelObject, Map<String, Model> models,
 			String variablName) {
 		LOGGER.entering(LOGGER.getName(), "getClassMember-ArrayProperty");
@@ -951,14 +736,6 @@ public class PlantUMLCodegen {
 		return classMemberObject;
 	}
 
-	/**
-	 * 
-	 * @param stringProperty
-	 * @param models
-	 * @param modelObject
-	 * @param variablName
-	 * @return
-	 */
 	private ClassMembers getClassMember(StringProperty stringProperty, String variablName) {
 		LOGGER.entering(LOGGER.getName(), "getClassMember-StringProperty");
 
@@ -970,28 +747,20 @@ public class PlantUMLCodegen {
 		return classMemberObject;
 	}
 
-	/**
-	 * 
-	 * @param refProperty
-	 * @param models
-	 * @param modelObject
-	 * @param variablName
-	 * @return
-	 */
 	private ClassMembers getClassMember(RefProperty refProperty, Map<String, Model> models, Model modelObject,
-			String variablName) {
+			String variableName) {
 		LOGGER.entering(LOGGER.getName(), "getClassMember-RefProperty");
 
 		ClassMembers classMemberObject = new ClassMembers();
 		classMemberObject.setDataType(getDataType(refProperty.getSimpleRef(), true));
-		classMemberObject.setName(variablName);
+		classMemberObject.setName(variableName);
 
 		if (models.containsKey(refProperty.getSimpleRef())) {
 			classMemberObject.setClassName(refProperty.getSimpleRef());
 		}
 
-		if (includeCardinality && StringUtils.isNotEmpty(variablName) && modelObject != null) {
-			if (isRequiredProperty(modelObject, variablName)) {
+		if (includeCardinality && StringUtils.isNotEmpty(variableName) && modelObject != null) {
+			if (isRequiredProperty(modelObject, variableName)) {
 				classMemberObject.setCardinality(CARDINALITY_ONE_TO_MANY);
 			} else {
 				classMemberObject.setCardinality(CARDINALITY_NONE_TO_MANY);
@@ -1002,12 +771,6 @@ public class PlantUMLCodegen {
 		return classMemberObject;
 	}
 
-	/**
-	 * 
-	 * @param modelObject
-	 * @param propertyName
-	 * @return
-	 */
 	private boolean isRequiredProperty(Model modelObject, String propertyName) {
 		boolean isRequiredProperty = false;
 		LOGGER.entering(LOGGER.getName(), "isRequiredProperty");
@@ -1018,8 +781,6 @@ public class PlantUMLCodegen {
 				if (requiredProperties != null && !requiredProperties.isEmpty()) {
 					isRequiredProperty = requiredProperties.contains(propertyName);
 				}
-			} else {
-				isRequiredProperty = false;
 			}
 		}
 
@@ -1027,40 +788,11 @@ public class PlantUMLCodegen {
 		return isRequiredProperty;
 	}
 
-	/**
-	 * 
-	 * @param className
-	 * @param isArray
-	 * @return
-	 */
 	private String getDataType(String className, boolean isArray) {
 		if (isArray) {
-			return new StringBuilder().append(toTitleCase(className)).append("[]").toString();
+			return toTitleCase(className) + "[]";
 		}
 
 		return toTitleCase(className);
-	}
-
-	/**
-	 * 
-	 * @param input
-	 * @return
-	 */
-	private String toTitleCase(String input) {
-		StringBuilder titleCase = new StringBuilder();
-		boolean nextTitleCase = true;
-
-		for (char c : input.toCharArray()) {
-			if (Character.isSpaceChar(c)) {
-				nextTitleCase = true;
-			} else if (nextTitleCase) {
-				c = Character.toTitleCase(c);
-				nextTitleCase = false;
-			}
-
-			titleCase.append(c);
-		}
-
-		return titleCase.toString();
 	}
 }

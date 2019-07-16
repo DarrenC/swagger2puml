@@ -1,7 +1,6 @@
 package com.kicksolutions.swagger.plantuml;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -12,12 +11,7 @@ import net.sourceforge.plantuml.FileFormat;
 import net.sourceforge.plantuml.FileFormatOption;
 import net.sourceforge.plantuml.GeneratedImage;
 import net.sourceforge.plantuml.SourceFileReader;
-import net.sourceforge.plantuml.SourceFileReader2;
 
-/**
- * MSANTOSH
- *
- */
 public class PlantUMLGenerator 
 {
 	private static final Logger LOGGER = Logger.getLogger(PlantUMLGenerator.class.getName());
@@ -25,13 +19,9 @@ public class PlantUMLGenerator
 	public PlantUMLGenerator() {
 		super();
 	}
-	    
-    /**
-     * 
-     * @param specFile
-     * @param output
-     */
-    public void transformSwagger2Puml(String specFile,String output,boolean generateDefinitionModelOnly,boolean includeCardinality,boolean generateSvg){
+
+    public void transformSwagger2Puml(String specFile, String output, boolean generateDefinitionModelOnly,
+                                      boolean includeCardinality, boolean generateSvg) {
     	LOGGER.entering(LOGGER.getName(), "transformSwagger2Puml");
     	
     	File swaggerSpecFile = new File(specFile);
@@ -46,12 +36,11 @@ public class PlantUMLGenerator
     		
     		try{
     			LOGGER.info("Processing File --> "+ specFile);
-    			pumlPath = codegen.generatePuml();    		
-    			LOGGER.info("Sucessfully Create PUML !!!");
+    			pumlPath = codegen.generatePlantUmlFile();
+    			LOGGER.info("Sucessfully Created PUML !!!");
     			
     			if(generateSvg)
     			{
-    				//generateUMLDiagram(pumlPath, targetLocation);
     				generateUmlDiagramNonThread(pumlPath, targetLocation);
     			}
     		}
@@ -65,21 +54,10 @@ public class PlantUMLGenerator
     	
     	LOGGER.exiting(LOGGER.getName(), "transformSwagger2Puml");
     }
-    
-    /**
-     * 
-     * @param pumlLocation
-     * @param targetLocation
-     * @throws IOException
-     * @throws InterruptedException
-     */
-    private void generateUMLDiagram(String pumlLocation,File targetLocation) throws IOException, InterruptedException{
-    	net.sourceforge.plantuml.Run.main(new String[]{"-tsvg","-o",targetLocation.getAbsolutePath(),"-I",pumlLocation});
-    }
 
     private void generateUmlDiagramNonThread(String plantUmlFilePath, File targetOutputFile) throws Exception {
-			SourceFileReader sourceFileReader = new SourceFileReader(new File(plantUmlFilePath));
+			SourceFileReader sourceFileReader = new SourceFileReader(new File(plantUmlFilePath), targetOutputFile);
 			sourceFileReader.setFileFormatOption(new FileFormatOption(FileFormat.SVG));
-			List<GeneratedImage> list = sourceFileReader.getGeneratedImages();
+			sourceFileReader.getGeneratedImages();
 		}
 }
