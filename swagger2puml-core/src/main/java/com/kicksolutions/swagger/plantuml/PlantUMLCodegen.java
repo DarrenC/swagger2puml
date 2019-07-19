@@ -19,6 +19,11 @@ import static com.kicksolutions.swagger.plantuml.FormatUtility.toTitleCase;
 public class PlantUMLCodegen {
 
 	private static final Logger LOGGER = Logger.getLogger(PlantUMLCodegen.class.getName());
+	public static final String TITLE = "title";
+	public static final String VERSION = "version";
+	public static final String CLASS_DIAGRAMS = "classDiagrams";
+	public static final String INTERFACE_DIAGRAMS = "interfaceDiagrams";
+	public static final String ENTITY_RELATIONS = "entityRelations";
 
 	private boolean generateDefinitionModelOnly;
 	private boolean includeCardinality;
@@ -44,7 +49,7 @@ public class PlantUMLCodegen {
 	 * @throws IOException - If there is an error writing the file
 	 * @throws IllegalAccessException - if there is an issue generating the file information
 	 */
-	public String generatePlantUmlFile() throws IOException, IllegalAccessException {
+	public String generatePlantUmlFile(Swagger swagger) throws IOException, IllegalAccessException {
 		LOGGER.entering(LOGGER.getName(), "generatePlantUmlFile");
 
 		Map<String, Object> plantUmlObjectModelMap = convertSwaggerToPlantUmlObjectModelMap(swagger);
@@ -56,25 +61,25 @@ public class PlantUMLCodegen {
 		return plantUmlFilePath;
 	}
 
-	private Map<String, Object> convertSwaggerToPlantUmlObjectModelMap(Swagger swagger) {
+	public Map<String, Object> convertSwaggerToPlantUmlObjectModelMap(Swagger swagger) {
 		LOGGER.entering(LOGGER.getName(), "convertSwaggerToPlantUmlObjectModelMap");
 
 		Map<String, Object> additionalProperties = new TreeMap<>();
 
-		additionalProperties.put("title", swagger.getInfo().getTitle());
-		additionalProperties.put("version", swagger.getInfo().getVersion());
+		additionalProperties.put(TITLE, swagger.getInfo().getTitle());
+		additionalProperties.put(VERSION, swagger.getInfo().getVersion());
 
 		List<ClassDiagram> classDiagrams = processSwaggerModels(swagger);
-		additionalProperties.put("classDiagrams", classDiagrams);
+		additionalProperties.put(CLASS_DIAGRAMS, classDiagrams);
 
 		List<InterfaceDiagram> interfaceDiagrams = new ArrayList<>();
 		
 		if (!generateDefinitionModelOnly) {
 			interfaceDiagrams.addAll(processSwaggerPaths(swagger));
-			additionalProperties.put("interfaceDiagrams", interfaceDiagrams);
+			additionalProperties.put(INTERFACE_DIAGRAMS, interfaceDiagrams);
 		}
 		
-		additionalProperties.put("entityRelations", getRelations(classDiagrams, interfaceDiagrams));
+		additionalProperties.put(ENTITY_RELATIONS, getRelations(classDiagrams, interfaceDiagrams));
 
 		LOGGER.exiting(LOGGER.getName(), "convertSwaggerToPlantUmlObjectModelMap");
 

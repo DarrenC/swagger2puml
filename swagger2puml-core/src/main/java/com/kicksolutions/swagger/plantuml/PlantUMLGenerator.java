@@ -22,7 +22,7 @@ public class PlantUMLGenerator
 
     public void transformSwagger2Puml(String specFile, String output, boolean generateDefinitionModelOnly,
                                       boolean includeCardinality, boolean generateSvg) {
-    	LOGGER.entering(LOGGER.getName(), "transformSwagger2Puml");
+		LOGGER.entering(LOGGER.getName(), "transformSwagger2Puml");
     	
     	File swaggerSpecFile = new File(specFile);
     	File targetLocation = new File(output);
@@ -31,12 +31,11 @@ public class PlantUMLGenerator
     			&& targetLocation.exists() && targetLocation.isDirectory()) { 
     		
     		Swagger swaggerObject = new SwaggerParser().read(swaggerSpecFile.getAbsolutePath());
-    		PlantUMLCodegen codegen = new PlantUMLCodegen(swaggerObject, targetLocation, generateDefinitionModelOnly, includeCardinality);
-    		String pumlPath = null;
-    		
+
     		try{
+					PlantUMLCodegen codegen = new PlantUMLCodegen(swaggerObject, targetLocation, generateDefinitionModelOnly, includeCardinality);
     			LOGGER.info("Processing File --> "+ specFile);
-    			pumlPath = codegen.generatePlantUmlFile();
+					String pumlPath = codegen.generatePlantUmlFile(swaggerObject);
     			LOGGER.info("Sucessfully Created PUML !!!");
     			
     			if(generateSvg)
