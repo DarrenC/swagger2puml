@@ -28,7 +28,5 @@ public class PlantUMLCodegenTest {
     assertNotNull(stringObjectMap.get(plantUMLCodegen.CLASS_DIAGRAMS), "Class diagrams should not be null");
     assertNotNull(stringObjectMap.get(plantUMLCodegen.INTERFACE_DIAGRAMS), "Interface Diagrams should not be null");
     assertNotNull(stringObjectMap.get(plantUMLCodegen.ENTITY_RELATIONS), "Relations should not be null");
-
-
   }
 }
