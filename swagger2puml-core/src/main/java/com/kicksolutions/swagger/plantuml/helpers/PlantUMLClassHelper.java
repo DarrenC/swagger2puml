@@ -27,7 +27,6 @@ public class PlantUMLClassHelper {
     this.includeCardinality = includeCardinality;
   }
 
-
   public List<ClassDiagram> processSwaggerModels(Swagger swagger) {
     LOGGER.entering(LOGGER.getName(), "processSwaggerModels");
 
