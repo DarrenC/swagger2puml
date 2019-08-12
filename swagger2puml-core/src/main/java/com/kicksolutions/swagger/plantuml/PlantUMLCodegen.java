@@ -1,18 +1,21 @@
 package com.kicksolutions.swagger.plantuml;
 
 import com.kicksolutions.swagger.plantuml.helpers.PlantUMLClassHelper;
-import com.kicksolutions.swagger.plantuml.vo.*;
-import io.swagger.models.*;
-import io.swagger.models.parameters.*;
-import io.swagger.models.properties.*;
+import com.kicksolutions.swagger.plantuml.helpers.PlantUMLInterfaceDiagramHelper;
+import com.kicksolutions.swagger.plantuml.helpers.PlantUMLRelationHelper;
+import com.kicksolutions.swagger.plantuml.vo.ClassDiagram;
+import com.kicksolutions.swagger.plantuml.vo.ClassRelation;
+import com.kicksolutions.swagger.plantuml.vo.InterfaceDiagram;
+import io.swagger.models.Swagger;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.logging.Logger;
-
-import static com.kicksolutions.swagger.plantuml.FormatUtility.toTitleCase;
 
 public class PlantUMLCodegen {
 
@@ -71,341 +74,18 @@ public class PlantUMLCodegen {
     List<InterfaceDiagram> interfaceDiagrams = new ArrayList<>();
 
     if (!generateDefinitionModelOnly) {
-      interfaceDiagrams.addAll(processSwaggerPaths(swagger));
+      PlantUMLInterfaceDiagramHelper plantUMLInterfaceDiagramHelper = new PlantUMLInterfaceDiagramHelper();
+      interfaceDiagrams.addAll(plantUMLInterfaceDiagramHelper.processSwaggerPaths(swagger));
       additionalProperties.put(INTERFACE_DIAGRAMS, interfaceDiagrams);
     }
 
-    additionalProperties.put(ENTITY_RELATIONS, getRelations(classDiagrams, interfaceDiagrams));
+    PlantUMLRelationHelper plantUMLRelationHelper = new PlantUMLRelationHelper();
+    // TODO - Test class for this part
+    additionalProperties.put(ENTITY_RELATIONS, plantUMLRelationHelper.getRelations(classDiagrams, interfaceDiagrams));
 
     LOGGER.exiting(LOGGER.getName(), "convertSwaggerToPlantUmlObjectModelMap");
 
     return additionalProperties;
-  }
-
-  private List<ClassRelation> getRelations(List<ClassDiagram> classDiagrams, List<InterfaceDiagram> interfaceDiagrams) {
-    List<ClassRelation> relations = new ArrayList<>();
-    relations.addAll(getAllModelRelations(classDiagrams));
-    relations.addAll(getAllInterfacesRelations(interfaceDiagrams));
-
-    return filterUnique(relations, false);
-  }
-
-  private List<ClassRelation> getAllModelRelations(List<ClassDiagram> classDiagrams) {
-    List<ClassRelation> modelRelations = new ArrayList<>();
-
-    for (ClassDiagram classDiagram : classDiagrams) {
-      List<ClassRelation> classRelations = classDiagram.getChildClass();
-
-      for (ClassRelation classRelation : classRelations) {
-        classRelation.setSourceClass(classDiagram.getClassName());
-        modelRelations.add(classRelation);
-      }
-    }
-
-    return modelRelations;
-  }
-
-  private List<ClassRelation> getAllInterfacesRelations(List<InterfaceDiagram> interfaceDiagrams) {
-    List<ClassRelation> modelRelations = new ArrayList<>();
-
-    for (InterfaceDiagram classDiagram : interfaceDiagrams) {
-      List<ClassRelation> classRelations = classDiagram.getChildClass();
-
-      for (ClassRelation classRelation : classRelations) {
-        classRelation.setSourceClass(classDiagram.getInterfaceName());
-        modelRelations.add(classRelation);
-      }
-    }
-
-    return modelRelations;
-  }
-
-  private List<InterfaceDiagram> processSwaggerPaths(Swagger swagger) {
-    LOGGER.entering(LOGGER.getName(), "processSwaggerPaths");
-    List<InterfaceDiagram> interfaceDiagrams = new ArrayList<>();
-    Map<String, Path> paths = swagger.getPaths();
-
-    for (Map.Entry<String, Path> entry : paths.entrySet()) {
-      Path pathObject = entry.getValue();
-
-      LOGGER.info("Processing Path --> " + entry.getKey());
-
-      List<Operation> operations = pathObject.getOperations();
-      String uri = entry.getKey();
-
-      for (Operation operation : operations) {
-        interfaceDiagrams.add(getInterfaceDiagram(operation, uri));
-      }
-    }
-
-    LOGGER.exiting(LOGGER.getName(), "processSwaggerPaths");
-    return interfaceDiagrams;
-  }
-
-  private InterfaceDiagram getInterfaceDiagram(Operation operation, String uri) {
-    LOGGER.entering(LOGGER.getName(), "getInterfaceDiagram");
-
-    InterfaceDiagram interfaceDiagram = new InterfaceDiagram();
-    String interfaceName = getInterfaceName(operation.getTags(), operation, uri);
-    List<String> errorClassNames = getErrorClassNames(operation);
-    interfaceDiagram.setInterfaceName(interfaceName);
-    interfaceDiagram.setErrorClasses(errorClassNames);
-    interfaceDiagram.setMethods(getInterfaceMethods(operation));
-    interfaceDiagram.setChildClass(getInterfaceRelations(operation, errorClassNames));
-
-    LOGGER.exiting(LOGGER.getName(), "getInterfaceDiagram");
-    return interfaceDiagram;
-  }
-
-  private List<ClassRelation> getInterfaceRelations(Operation operation, List<String> errorClassNames) {
-    List<ClassRelation> relations = new ArrayList<>();
-    relations.addAll(getInterfaceRelatedResponses(operation));
-    relations.addAll(getInterfaceRelatedInputs(operation));
-    for (String errorClassName : errorClassNames) {
-      relations.add(getErrorClass(errorClassName));
-    }
-
-    return filterUnique(relations, true);
-  }
-
-  private List<ClassRelation> filterUnique(List<ClassRelation> relations, boolean compareTargetOnly) {
-    List<ClassRelation> uniqueList = new ArrayList<>();
-
-    for (ClassRelation relation : relations) {
-      if (!isTargetClassInMap(relation, uniqueList, compareTargetOnly)) {
-        uniqueList.add(relation);
-      }
-    }
-
-    return uniqueList;
-  }
-
-  private boolean isTargetClassInMap(ClassRelation sourceRelation, List<ClassRelation> relatedResponses,
-                                     boolean considerTargetOnly) {
-    for (ClassRelation relation : relatedResponses) {
-
-      if (considerTargetOnly) {
-        if (StringUtils.isNotEmpty(relation.getTargetClass()) && StringUtils.isNotEmpty(sourceRelation.getTargetClass())
-            && relation.getTargetClass().equalsIgnoreCase(sourceRelation.getTargetClass())) {
-          return true;
-        }
-      } else {
-        if (StringUtils.isNotEmpty(relation.getSourceClass())
-            && StringUtils.isNotEmpty(sourceRelation.getSourceClass())
-            && StringUtils.isNotEmpty(relation.getTargetClass())
-            && StringUtils.isNotEmpty(sourceRelation.getTargetClass())
-            && relation.getSourceClass().equalsIgnoreCase(sourceRelation.getSourceClass())
-            && relation.getTargetClass().equalsIgnoreCase(sourceRelation.getTargetClass())) {
-
-          return true;
-        }
-      }
-    }
-
-    return false;
-  }
-
-  private ClassRelation getErrorClass(String errorClassName) {
-    ClassRelation classRelation = new ClassRelation();
-    classRelation.setTargetClass(errorClassName);
-    classRelation.setComposition(false);
-    classRelation.setExtension(true);
-
-    return classRelation;
-  }
-
-
-  private List<ClassRelation> getInterfaceRelatedInputs(Operation operation) {
-    List<ClassRelation> relatedResponses = new ArrayList<>();
-    List<Parameter> parameters = operation.getParameters();
-
-    for (Parameter parameter : parameters) {
-      if (parameter instanceof BodyParameter) {
-        Model bodyParameter = ((BodyParameter) parameter).getSchema();
-
-        if (bodyParameter instanceof RefModel) {
-
-          ClassRelation classRelation = new ClassRelation();
-          classRelation.setTargetClass(((RefModel) bodyParameter).getSimpleRef());
-          classRelation.setComposition(false);
-          classRelation.setExtension(true);
-
-          relatedResponses.add(classRelation);
-        } else if (bodyParameter instanceof ArrayModel) {
-          Property propertyObject = ((ArrayModel) bodyParameter).getItems();
-
-          if (propertyObject instanceof RefProperty) {
-            ClassRelation classRelation = new ClassRelation();
-            classRelation.setTargetClass(((RefProperty) propertyObject).getSimpleRef());
-            classRelation.setComposition(false);
-            classRelation.setExtension(true);
-
-            relatedResponses.add(classRelation);
-          }
-        }
-      }
-    }
-
-    return relatedResponses;
-  }
-
-  private List<ClassRelation> getInterfaceRelatedResponses(Operation operation) {
-    List<ClassRelation> relatedResponses = new ArrayList<>();
-    Map<String, Response> responses = operation.getResponses();
-
-    for (Map.Entry<String, Response> responsesEntry : responses.entrySet()) {
-      String responseCode = responsesEntry.getKey();
-
-      if (!(responseCode.equalsIgnoreCase("default") || Integer.parseInt(responseCode) >= 300)) {
-        Property responseProperty = responsesEntry.getValue().getSchema();
-
-        if (responseProperty instanceof RefProperty) {
-          ClassRelation relation = new ClassRelation();
-          relation.setTargetClass(((RefProperty) responseProperty).getSimpleRef());
-          relation.setComposition(false);
-          relation.setExtension(true);
-
-          relatedResponses.add(relation);
-        } else if (responseProperty instanceof ArrayProperty) {
-          ArrayProperty arrayObject = (ArrayProperty) responseProperty;
-          Property arrayResponseProperty = arrayObject.getItems();
-
-          if (arrayResponseProperty instanceof RefProperty) {
-            ClassRelation relation = new ClassRelation();
-            relation.setTargetClass(((RefProperty) arrayResponseProperty).getSimpleRef());
-            relation.setComposition(false);
-            relation.setExtension(true);
-
-            relatedResponses.add(relation);
-          }
-        }
-      }
-
-    }
-
-    return relatedResponses;
-  }
-
-  private List<MethodDefinitions> getInterfaceMethods(Operation operation) {
-    List<MethodDefinitions> interfaceMethods = new ArrayList<>();
-    MethodDefinitions methodDefinitions = new MethodDefinitions();
-    methodDefinitions.setMethodDefinition(operation.getOperationId() + "(" +
-        getMethodParameters(operation) + ")");
-    methodDefinitions.setReturnType(getInterfaceReturnType(operation));
-
-    interfaceMethods.add(methodDefinitions);
-
-    return interfaceMethods;
-  }
-
-  private String getMethodParameters(Operation operation) {
-    String methodParameter = "";
-    List<Parameter> parameters = operation.getParameters();
-
-    for (Parameter parameter : parameters) {
-      if (StringUtils.isNotEmpty(methodParameter)) {
-        methodParameter += ",";
-      }
-
-      if (parameter instanceof PathParameter) {
-        methodParameter += toTitleCase(
-            ((PathParameter) parameter).getType()) + " " + ((PathParameter) parameter).getName();
-      } else if (parameter instanceof QueryParameter) {
-        Property queryParameterProperty = ((QueryParameter) parameter).getItems();
-
-        if (queryParameterProperty instanceof RefProperty) {
-          methodParameter += toTitleCase(
-              ((RefProperty) queryParameterProperty).getSimpleRef()) + "[] " + ((BodyParameter) parameter).getName();
-        } else if (queryParameterProperty instanceof StringProperty) {
-          methodParameter += toTitleCase(
-              queryParameterProperty.getType()) + "[] " + ((QueryParameter) parameter).getName();
-        } else {
-          methodParameter += toTitleCase(
-              ((QueryParameter) parameter).getType()) + " " + ((QueryParameter) parameter).getName();
-        }
-      } else if (parameter instanceof BodyParameter) {
-        Model bodyParameter = ((BodyParameter) parameter).getSchema();
-
-        if (bodyParameter instanceof RefModel) {
-          methodParameter += toTitleCase(
-              ((RefModel) bodyParameter).getSimpleRef()) + " " + ((BodyParameter) parameter).getName();
-        } else if (bodyParameter instanceof ArrayModel) {
-          Property propertyObject = ((ArrayModel) bodyParameter).getItems();
-
-          if (propertyObject instanceof RefProperty) {
-            methodParameter += toTitleCase(
-                ((RefProperty) propertyObject).getSimpleRef()) + "[] " + ((BodyParameter) parameter).getName();
-          }
-        }
-      } else if (parameter instanceof FormParameter) {
-        methodParameter += toTitleCase(
-            ((FormParameter) parameter).getType()) + " " + ((FormParameter) parameter).getName();
-      }
-    }
-
-    return methodParameter;
-  }
-
-  private String getInterfaceReturnType(Operation operation) {
-    String returnType = "void";
-
-    Map<String, Response> responses = operation.getResponses();
-    for (Map.Entry<String, Response> responsesEntry : responses.entrySet()) {
-      String responseCode = responsesEntry.getKey();
-
-      if (!(responseCode.equalsIgnoreCase("default") || Integer.parseInt(responseCode) >= 300)) {
-        Property responseProperty = responsesEntry.getValue().getSchema();
-
-        if (responseProperty instanceof RefProperty) {
-          returnType = ((RefProperty) responseProperty).getSimpleRef();
-        } else if (responseProperty instanceof ArrayProperty) {
-          Property arrayResponseProperty = ((ArrayProperty) responseProperty).getItems();
-          if (arrayResponseProperty instanceof RefProperty) {
-            returnType = ((RefProperty) arrayResponseProperty).getSimpleRef() + "[]";
-          }
-        } else if (responseProperty instanceof ObjectProperty) {
-          returnType = toTitleCase(operation.getOperationId()) + "Generated";
-        }
-      }
-    }
-
-    return returnType;
-  }
-
-  private List<String> getErrorClassNames(Operation operation) {
-    List<String> errorClasses = new ArrayList<>();
-    Map<String, Response> responses = operation.getResponses();
-
-    for (Map.Entry<String, Response> responsesEntry : responses.entrySet()) {
-      String responseCode = responsesEntry.getKey();
-
-      if (responseCode.equalsIgnoreCase("default") || Integer.parseInt(responseCode) >= 300) {
-        Property responseProperty = responsesEntry.getValue().getSchema();
-
-        if (responseProperty instanceof RefProperty) {
-          String errorClassName = ((RefProperty) responseProperty).getSimpleRef();
-          if (!errorClasses.contains(errorClassName)) {
-            errorClasses.add(errorClassName);
-          }
-        }
-      }
-    }
-
-    return errorClasses;
-  }
-
-  private String getInterfaceName(List<String> tags, Operation operation, String uri) {
-    String interfaceName;
-
-    if (!tags.isEmpty()) {
-      interfaceName = toTitleCase(tags.get(0).replaceAll(" ", ""));
-    } else if (StringUtils.isNotEmpty(operation.getOperationId())) {
-      interfaceName = toTitleCase(operation.getOperationId());
-    } else {
-      interfaceName = toTitleCase(uri.replaceAll("{", "").replaceAll("}", "").replaceAll("\\", ""));
-    }
-
-    return interfaceName + "Api";
   }
 
 }

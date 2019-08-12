@@ -1,16 +1,14 @@
 package com.kicksolutions.swagger.plantuml;
 
-import java.io.File;
-import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 import io.swagger.models.Swagger;
 import io.swagger.parser.SwaggerParser;
 import net.sourceforge.plantuml.FileFormat;
 import net.sourceforge.plantuml.FileFormatOption;
-import net.sourceforge.plantuml.GeneratedImage;
 import net.sourceforge.plantuml.SourceFileReader;
+
+import java.io.File;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class PlantUMLGenerator 
 {
@@ -22,39 +20,39 @@ public class PlantUMLGenerator
 
     public void transformSwagger2Puml(String specFile, String output, boolean generateDefinitionModelOnly,
                                       boolean includeCardinality, boolean generateSvg) {
-		LOGGER.entering(LOGGER.getName(), "transformSwagger2Puml");
+			LOGGER.entering(LOGGER.getName(), "transformSwagger2Puml");
     	
     	File swaggerSpecFile = new File(specFile);
     	File targetLocation = new File(output);
     	
     	if(swaggerSpecFile.exists() && !swaggerSpecFile.isDirectory() 
-    			&& targetLocation.exists() && targetLocation.isDirectory()) { 
-    		
-    		Swagger swaggerObject = new SwaggerParser().read(swaggerSpecFile.getAbsolutePath());
+    			&& targetLocation.exists() && targetLocation.isDirectory()) {
+
+    		LOGGER.info("Processing File --> "+ specFile);
+				Swagger swaggerObject = new SwaggerParser().read(swaggerSpecFile.getAbsolutePath());
 
     		try{
 					PlantUMLCodegen codegen = new PlantUMLCodegen(swaggerObject, targetLocation, generateDefinitionModelOnly, includeCardinality);
-    			LOGGER.info("Processing File --> "+ specFile);
-					String pumlPath = codegen.generatePlantUmlFile(swaggerObject);
-    			LOGGER.info("Sucessfully Created PUML !!!");
-    			
-    			if(generateSvg)
-    			{
-    				generateUmlDiagramNonThread(pumlPath, targetLocation);
-    			}
-    		}
+    			String pumlPath = codegen.generatePlantUmlFile(swaggerObject);
+    			LOGGER.info("Successfully Created Plant UML output file!");
+
+					if(generateSvg)	{
+						generateUmlDiagramFile(pumlPath, targetLocation);
+					}
+				}
     		catch(Exception e){
-    			LOGGER.log(Level.SEVERE, e.getMessage(),e);
-    			throw new RuntimeException(e);
-    		}
-    	}else{
-    		throw new RuntimeException("Spec File or Ouput Locations are not valid");
+					LOGGER.log(Level.SEVERE, e.getMessage(),e);
+					throw new RuntimeException(e);
+				}
+
+			}else{
+				throw new RuntimeException("Spec File or Output Location are not valid");
     	}
     	
     	LOGGER.exiting(LOGGER.getName(), "transformSwagger2Puml");
     }
 
-    private void generateUmlDiagramNonThread(String plantUmlFilePath, File targetOutputFile) throws Exception {
+    private void generateUmlDiagramFile(String plantUmlFilePath, File targetOutputFile) throws Exception {
 			SourceFileReader sourceFileReader = new SourceFileReader(new File(plantUmlFilePath), targetOutputFile);
 			sourceFileReader.setFileFormatOption(new FileFormatOption(FileFormat.SVG));
 			sourceFileReader.getGeneratedImages();
